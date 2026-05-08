@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>محاكي القدرات اللفظي - أ/ عبدالعزيز الفيفي</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <style>
+        :root { 
+            --main-color: #2c3e50; 
+            --bg-color: #f4f7f6; 
+            --white: #ffffff; 
+            --correct: #27ae60; 
+            --wrong: #e74c3c;
+            --passage-bg: rgba(0,0,0,0.03);
+        }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background-color: var(--bg-color); display: flex; justify-content: center; padding: 20px; margin: 0; user-select: none; transition: background 0.5s; }
+        .quiz-card { background: var(--white); width: 100%; max-width: 900px; border-radius: 15px; box-shadow: 0 5px 25px rgba(0,0,0,0.08); border-top: 12px solid var(--main-color); padding: 35px; position: relative; }
+        .header { text-align: center; border-bottom: 2px solid #f0f0f0; margin-bottom: 25px; padding-bottom: 15px; }
+        .nav-bar { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.02); padding: 15px 25px; border-radius: 10px; margin-bottom: 25px; border: 1px solid #eee; }
+        
+        /* تسيق اسم المتحدي */
+        .challenger-box { 
+            color: var(--main-color);
+            font-weight: bold; 
+        }
+
+        .q-type-badge { background: var(--main-color); color: white; padding: 8px 20px; border-radius: 8px; font-size: 1.1rem; font-weight: bold; }
+        .q-text { font-size: 1.6rem; font-weight: bold; text-align: center; line-height: 1.8; color: #2c3e50; padding: 10px; border-radius: 12px; min-height: 50px; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+        
+        .reading-passage { 
+            background-color: var(--passage-bg); border-right: 6px solid var(--main-color); 
+            padding: 20px; margin: 15px 0; border-radius: 8px; text-align: justify; 
+            font-size: 1.2rem; line-height: 1.9; color: #333; width: 100%; box-sizing: border-box; display: block;
+        }
+
+        .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 25px; }
+        .opt { padding: 20px; border: 2px solid #ecf0f1; border-radius: 12px; cursor: pointer; text-align: center; font-size: 1.3rem; background: #fff; transition: 0.2s; color: #34495e; font-weight: 600; }
+        .opt:hover { border-color: var(--main-color); background: #f9fbfb; }
+        .correct { background: var(--correct) !important; color: white !important; border-color: var(--correct) !important; }
+        .wrong { background: var(--wrong) !important; color: white !important; border-color: var(--wrong) !important; }
+        .btn { background: var(--main-color); color: white; padding: 15px 55px; border: none; border-radius: 8px; cursor: pointer; font-size: 1.1rem; font-weight: bold; display: inline-block; text-decoration: none; }
+        .hidden { display: none !important; }
+        input { width: 80%; padding: 15px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 15px; text-align: center; font-size: 1.1rem; }
+           /* تحسينات التجاوب مع الجوال */
+        @media (max-width: 600px) {
+            body { padding: 10px; }
+            .quiz-card { padding: 20px 15px; border-top-width: 8px; }
+            .header h3 { font-size: 1.2rem; }
+            .header h4 { font-size: 1rem; }
+            .nav-bar { padding: 10px; flex-direction: column; gap: 10px; }
+            .q-text { font-size: 1.3rem; line-height: 1.5; }
+            .options-grid { grid-template-columns: 1fr; gap: 12px; }
+            .opt { padding: 15px; font-size: 1.1rem; }
+            .reading-passage { font-size: 1.1rem; padding: 15px; line-height: 1.7; }
+            .btn { width: 100%; padding: 12px; box-sizing: border-box; }
+            input { width: 100%; box-sizing: border-box; }
+            #score-text { font-size: 3.5rem; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="quiz-card">
+    <div class="header">
+        <h3>ثانوية الأمير عبدالمجيد 🎓</h3>
+        <h4>أ / عبدالعزيز الفيفي ✨</h4>
+    </div>
+
+    <div id="lock-screen" class="hidden" style="text-align: center; padding: 40px;">
+        <h1 style="font-size: 4rem; margin: 0;">🚫</h1>
+        <h2 style="color: var(--wrong);">تنبيه النظام</h2>
+        <div id="lock-message" style="font-size: 1.3rem; line-height: 1.6; color: #555;"></div>
+        <button class="btn" onclick="location.reload()" style="margin-top: 20px;">العودة</button>
+    </div>
+
+    <div id="start-page" style="text-align: center;">
+        <p style="font-weight: bold; color: var(--main-color);">أدخل إيميل منصة مدرستي لبدء التحدي</p>
+        <input type="email" id="studentEmail" placeholder="sxxxxxxx@rb.moe.gov.sa">
+        <br>
+        <button class="btn" onclick="verifyAndStart()">دخول المنصة 🚀</button>
+        <p id="status-msg" style="margin-top: 15px; font-weight: bold;"></p>
+    </div>
+
+    <div id="quiz-page" class="hidden">
+        <div class="nav-bar">
+            <div id="q-counter" style="font-weight: bold;"></div>
+            <div id="challenger-display" class="challenger-box"></div> 
+            <div id="timer" style="font-weight: 900; font-size: 1.6rem; color: var(--wrong);">45</div>
+        </div>
+        <div style="text-align: right; margin-bottom: 10px;">
+            <span id="q-type-label" class="q-type-badge"></span>
+        </div>
+        <div id="question-text" class="q-text"></div>
+        <div id="options-area" class="options-grid"></div>
+        <div style="text-align: center; margin-top: 35px;">
+            <button id="next-btn" class="btn hidden" onclick="nextQuestion()">السؤال التالي ⮕</button>
+        </div>
+    </div>
+
+    <div id="result-page" class="hidden" style="text-align: center;">
+        <h2 id="final-greeting"></h2>
+        <div style="font-size: 5rem; font-weight: bold; margin: 25px 0; color: var(--main-color);" id="score-text"></div>
+        <button class="btn" onclick="location.reload()">خروج</button>
+    </div>
+</div>
+
+<script>
+    const themes = [
+        {main: "#800000", bg: "#fdf1f1", pbg: "rgba(128, 0, 0, 0.05)"},
+        {main: "#2c3e50", bg: "#f4f7f6", pbg: "rgba(44, 62, 80, 0.05)"},
+        {main: "#1e3a8a", bg: "#eff6ff", pbg: "rgba(30, 58, 138, 0.05)"},
+        {main: "#065f46", bg: "#ecfdf5", pbg: "rgba(6, 95, 70, 0.05)"},
+        {main: "#b45309", bg: "#fffbeb", pbg: "rgba(180, 83, 9, 0.05)"},
+        {main: "#6d28d9", bg: "#f5f3ff", pbg: "rgba(109, 40, 217, 0.05)"},
+        {main: "#0369a1", bg: "#f0f9ff", pbg: "rgba(3, 105, 161, 0.05)"},
+        {main: "#be185d", bg: "#fff1f2", pbg: "rgba(190, 24, 93, 0.05)"},
+        {main: "#15803d", bg: "#f0fdf4", pbg: "rgba(21, 128, 61, 0.05)"},
+        {main: "#4338ca", bg: "#eef2ff", pbg: "rgba(67, 56, 202, 0.05)"},
+        {main: "#334155", bg: "#f8fafc", pbg: "rgba(51, 65, 85, 0.05)"},
+        {main: "#7c2d12", bg: "#fff7ed", pbg: "rgba(124, 45, 18, 0.05)"},
+        {main: "#1e1b4b", bg: "#fdfdfd", pbg: "rgba(30, 27, 75, 0.03)"}
+    ];
+
+    const theme = themes[Math.floor(Math.random() * themes.length)];
+    document.documentElement.style.setProperty('--main-color', theme.main);
+    document.documentElement.style.setProperty('--bg-color', theme.bg);
+    document.documentElement.style.setProperty('--passage-bg', theme.pbg);
+
+    const rawQuizData = [const questions = [
+  // --- التناظر اللفظي ---
+  { t: "تناظر لفظي", q: "الملك : جبريل", opts: ["لسان : مُر", "متوسط : ابتدائي", "الفاكهة : التفاح", "رطب : تمر"], ans: "الفاكهة : التفاح" },
+  { t: "تناظر لفظي", q: "إتقان : جهد", opts: ["حزن : موت", "ماء : ثلج", "عسل : نحل", "النجاح : حليم"], ans: "حزن : موت" },
+  { t: "تناظر لفظي", q: "إتقان : جودة", opts: ["إثبات شخصية : بطاقة", "كتب : قرأ", "صاروخ : إطلاق", "بداية : نهاية"], ans: "إثبات شخصية : بطاقة" },
+  { t: "تناظر لفظي", q: "حقيبة : طالب", opts: ["بحر : سفينة", "مسطرة : قلم", "صفحة : كتاب", "بضائع : قطار"], ans: "بضائع : قطار" },
+  { t: "تناظر لفظي", q: "حر : لافح", opts: ["داء : عضال", "صناعة : اختراع", "تمييز : ذكاء", "سهم : qاطع"], ans: "داء : عضال" },
+  { t: "تناظر لفظي", q: "ضفدع : نقيق", opts: ["نحلة : طنين", "أسد : عويل (عواء)", "ماء : هدير", "هديل : حمام"], ans: "نحلة : طنين" },
+  { t: "تناظر لفظي", q: "طاقة : حركة", opts: ["الخير : الشر", "جذل : حبور", "تمرين : لياقة", "كرم : جود"], ans: "تمرين : لياقة" },
+  { t: "تناظر لفظي", q: "المدح : الثناء", opts: ["الهرولة : المشي", "العهد : الوعد", "قفز : المشي", "ليل : نهار"], ans: "العهد : الوعد" },
+  { t: "تناظر لفظي", q: "شجرة : نبات", opts: ["كهرباء : طاقة", "شيب : بياض", "سقوط : تأرجح", "أشجار : أوراق"], ans: "كهرباء : طاقة" },
+
+  // --- إكمال الجمل ---
+  { t: "إكمال جمل", q: "من تكلم عن نفسه بما ...... تكلم الناس عنه بما ......", opts: ["يحب - يكره", "يفرح - يأملون", "يشاهد - يسمعون", "يريد - يغضب"], ans: "يحب - يكره" },
+  { t: "إكمال جمل", q: "من صحب صاحب ...... لم ........", opts: ["الخير - يسلم", "الشر - يسلم", "العلم - يفلح", "المعروف - يرجى"], ans: "الشر - يسلم" },
+  { t: "إكمال جمل", q: "احذر أن ........ الدنيا و ........ عن الله.", opts: ["تلهيك - تشغلك", "تغرك - تقربك", "تعجبك - تذكرك", "تنسيك - تأخذك"], ans: "تلهيك - تشغلك" },
+  { t: "إكمال جمل", q: "احذر ........ إذا مازحته و ........ إذا عاشرته.", opts: ["العاقل - الأحمق", "الكئيب - الحاقد", "الأرعن - السافل", "الكريم - اللئيم"], ans: "الأرعن - السافل" },
+  { t: "إكمال جمل", q: "لا تحزن إذا أصابتك المشاكل لأنها بعد سنوات ستحمل اسم .........", opts: ["الإنجازات", "الخبرة", "الفشل", "إخفاق"], ans: "الخبرة" },
+  { t: "إكمال جمل", q: "الحياة خفيفة (سهلة) على ........، لكنها ثقيلة (صعبة) على كبار السن.", opts: ["الشباب", "الرجل", "العجوز", "الكبير"], ans: "الشباب" },
+  { t: "إكمال جمل", q: "الإصرار على تحسين بعض جوانب الحياة تعويد للنفس على زيادة الوعي بما لديها والمحافظة عليه.", opts: ["تحسين", "تعويد", "زيادة", "المحافظة"], ans: "تحسين" },
+
+  // --- الخطأ السياقي ---
+  { t: "خطأ سياقي", q: "ليست الصعاب هي التي تكسب المجد، بل الناس من يكسبون الألقاب مجداً.", opts: ["الصعاب", "تكسب", "يكسبون", "الألقاب"], ans: "الصعاب" },
+  { t: "خطأ سياقي", q: "الإبداع يبدأ بالخوف، والتفكير ينتهي عند ذلك بالعمل.", opts: ["الإبداع", "بالخوف", "ينتهي", "بالعمل"], ans: "بالخوف" },
+  { t: "خطأ سياقي", q: "الإنسان الذي لديه ثقة قليلة يستطيع أن يواجه مصاعب الحياة.", opts: ["ثقة", "قليلة", "يستطيع", "مصاعب"], ans: "قليلة" },
+  { t: "خطأ سياقي", q: "الاحترام لا يكون بالكلام المجرد، لابد أن يكون ذلك بالأفعال فقط.", opts: ["الاحترام", "بالكلام", "يكون", "فقط"], ans: "فقط" },
+
+  // --- المفردة الشاذة ---
+  { t: "المفردة الشاذة", q: "اختر المفردة الشاذة:", opts: ["شجرة", "زيتونة", "برتقالة", "تمر"], ans: "شجرة" },
+  { t: "المفردة الشاذة", q: "اختر المفردة الشاذة:", opts: ["شرط", "شكل", "نوع", "صنف"], ans: "شرط" },
+  { t: "المفردة الشاذة", q: "اختر المفردة الشاذة:", opts: ["كواسر", "أظافر", "مخالب", "براثن"], ans: "كواسر" },
+  { t: "المفردة الشاذة", q: "اختر المفردة الشاذة:", opts: ["بطريق", "دولفين", "أخطبوط", "سمكة"], ans: "بطريق" },
+
+  // --- استيعاب المقروء (مضافة لكل الأسئلة) ---
+  { 
+    t: "استيعاب المقروء", 
+    q: "<span class='reading-passage'>النجاح ليس له مفهوم جامد، بل له عدة مفاهيم. مفاهيم النجاح وأساليبه ليست دائماً متحجرة أو جامدة، بل هي في تطور دائم. لذلك يجب علينا أن نصحح أفكارنا عن النجاح.</span> ما العلاقة بين متحجرة وجامدة؟", 
+    opts: ["ترادف", "توافق", "تضاد", "تناقص"], 
+    ans: "ترادف" 
+  },
+  { 
+    t: "استيعاب المقروء", 
+    q: "<span class='reading-passage'>النجاح ليس له مفهوم جامد، بل له عدة مفاهيم. مفاهيم النجاح وأساليبه ليست دائماً متحجرة أو جامدة، بل هي في تطور دائم. لذلك يجب علينا أن نصحح أفكارنا عن النجاح.</span> أي مما يأتي ليس من مضمون القطعة:", 
+    opts: ["النجاح له طرق تقليدية", "النجاح له أكثر من مفهوم", "تقويم النجاح واسع وشامل", "أسباب النجاح كثيرة"], 
+    ans: "النجاح له طرق تقليدية" 
+  },
+  { 
+    t: "استيعاب المقروء", 
+    q: "<span class='reading-passage'>حتى الناس متطورين من ناحية شيء ..... الأخرى هي الذائقة.</span> إذا كانت الأخرى هي الذائقة، فما هي الأولى؟", 
+    opts: ["مفاهيم النجاح", "الناس", "التطور", "النجاح"], 
+    ans: "مفاهيم النجاح" 
+  },
+  { 
+    t: "استيعاب المقروء", 
+    q: "<span class='reading-passage'>\"لذلك يجب علينا أن نصحح أفكارنا عن النجاح، ونحن في حاجة ماسة إلى ذلك\".</span> جملة \"لذلك يجب ......\" تدل على أن ما قبلها:", 
+    opts: ["نتيجة", "سبب", "عموم", "إجمال"], 
+    ans: "سبب" 
+  },
+  { 
+    t: "استيعاب المقروء", 
+    q: "<span class='reading-passage'>\"لذلك يجب علينا أن نصحح أفكارنا عن النجاح، ونحن في حاجة ماسة إلى ذلك\".</span> علاقة (لذلك يجب ......) بما قبلها:", 
+    opts: ["نتيجة", "سبب", "عموم", "إجمال"], 
+    ans: "نتيجة" 
+  }
+];
+
+    const currentModelId = " نموذج - 2 ";
+    let sName, sEmail, currentIdx = 0, userScore = 0, timer, finalQuestions;
+
+    const firebaseConfig = { apiKey: "AIzaSyBkCO7FDQXd89YDf843J4_AtvEFvzzt-R0", authDomain: "aztlg-494c3.firebaseapp.com", projectId: "aztlg-494c3", storageBucket: "aztlg-494c3.firebasestorage.app", messagingSenderId: "597051893949", appId: "1:597051893949:web:de5554ac900317a92b2fd4" };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    async function verifyAndStart() {
+        const emailInput = document.getElementById('studentEmail').value.trim().toLowerCase();
+        if(!emailInput.includes('@')) return alert("يرجى إدخال إيميل منصة مدرستي");
+        
+        document.getElementById('status-msg').innerText = "جاري التحقق... ⏳";
+
+        try {
+            const allowedDoc = await db.collection("allowed_students").doc(emailInput).get();
+            if (!allowedDoc.exists) {
+                showLock("هذا الإيميل غير مسجل. يرجى مراجعة المعلم.");
+                return;
+            }
+
+            sName = allowedDoc.data().name;
+            sEmail = emailInput;
+
+            const resultCheck = await db.collection("student_results")
+                .where("email", "==", sEmail)
+                .where("model_id", "==", currentModelId).get();
+
+            if (!resultCheck.empty) {
+                // العبارة الجديدة مع الرابط
+                const nextLink = "https://school2school1-maker.github.io/Q-Lafzi/"; 
+                showLock(`عذراً، لقد سبق لك خوض هذا الاختبار. جرب تحدياً آخر واستمر في التألق!`, nextLink);
+                return;
+            }
+
+            document.getElementById('challenger-display').innerText = `المتحدي: ${sName}`;
+            
+            finalQuestions = [...rawQuizData].sort(() => Math.random() - 0.5);
+            document.getElementById('start-page').classList.add('hidden');
+            document.getElementById('quiz-page').classList.remove('hidden');
+            loadQuestion();
+        } catch (e) { alert("خطأ في الاتصال بالسيرفر."); }
+    }
+
+    function showLock(msg, link = "") {
+        document.getElementById('start-page').classList.add('hidden');
+        document.getElementById('lock-screen').classList.remove('hidden');
+        
+        let content = `<p>${msg}</p>`;
+        if (link) {
+            content += `<div style="margin-top:20px;">
+                            <p style="font-size:1rem; color:#888;">يمكنك تجربة هذا الرابط:</p>
+                            <a href="${link}" class="btn" style="background:#27ae60; padding:10px 30px;">اضغط هنا للانتقال ⮕</a>
+                        </div>`;
+        }
+        document.getElementById('lock-message').innerHTML = content;
+    }
+
+    function loadQuestion() {
+        if(currentIdx >= finalQuestions.length) return finish();
+        const data = finalQuestions[currentIdx];
+        
+        document.getElementById('q-counter').innerText = `سؤال ${currentIdx+1} من ${finalQuestions.length}`;
+        document.getElementById('q-type-label').innerText = data.t;
+        document.getElementById('question-text').innerHTML = data.q;
+        document.getElementById('next-btn').classList.add('hidden');
+        
+        const box = document.getElementById('options-area'); box.innerHTML = '';
+        [...data.opts].sort(() => Math.random() - 0.5).forEach(o => {
+            const d = document.createElement('div'); d.className = 'opt'; d.innerText = o;
+            d.onclick = () => {
+                clearInterval(timer);
+                if(o === data.ans) userScore++;
+                document.querySelectorAll('.opt').forEach(el => {
+                    el.onclick = null;
+                    if(el.innerText === data.ans) el.classList.add('correct');
+                    else if(el.innerText === o) el.classList.add('wrong');
+                });
+                document.getElementById('next-btn').classList.remove('hidden');
+            };
+            box.appendChild(d);
+        });
+        startTimer();
+    }
+
+    function startTimer() {
+        let s = 45; document.getElementById('timer').innerText = s;
+        clearInterval(timer);
+        timer = setInterval(() => {
+            s--; document.getElementById('timer').innerText = s;
+            if(s<=0) { clearInterval(timer); nextQuestion(); }
+        }, 1000);
+    }
+
+    function nextQuestion() { currentIdx++; loadQuestion(); }
+
+    async function finish() {
+        document.getElementById('quiz-page').classList.add('hidden');
+        document.getElementById('result-page').classList.remove('hidden');
+        document.getElementById('final-greeting').innerHTML = `جهدك اليوم محل تقدير، وبإصرار وعزيمة ستصل لمستوى أعلى في المرة المقبلة <br> يا (${sName}) 💐💐`;
+        document.getElementById('score-text').innerText = `${userScore} / ${finalQuestions.length}`;
+        
+        await db.collection("student_results").add({ 
+            name: sName, email: sEmail, score: userScore, total: finalQuestions.length, 
+            model_id: currentModelId, time: firebase.firestore.FieldValue.serverTimestamp() 
+        });
+    }
+</script>
+</body>
+</html>
